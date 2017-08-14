@@ -1,0 +1,21 @@
+---
+
+ 
+  tasks:
+   - name: Nginx Webserver setup
+     yum: name=nginx state=installed update_cache=true
+     notify:
+      - start nginx     
+
+
+   - name: copy index.html
+     template: src=index.html.j2 dest=/usr/share/nginx/html/index.html
+     notify:
+      - restart nginx
+   
+   - name: nginx listen on port 8081
+     lineinfile: dest=/etc/nginx/nginx.conf regexp="^%80\default%" line="8081 default" state=present
+     notify:
+      - restart nginx
+
+...

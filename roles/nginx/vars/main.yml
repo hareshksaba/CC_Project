@@ -1,5 +1,13 @@
 ---
    vars: 
-   - MyMessage:  "Haresh Comcast Project"
-   
+    - MyMessage:  "Haresh Comcast Project"
+
+    nginx_basic_auth:
+     - { user: 'ec2-user', password: 'admin' }
+
+    nginx_sites:
+      default:
+        domains: ['localhost']
+        listen_http: 8080
+        listen_https: 8081 
 ...

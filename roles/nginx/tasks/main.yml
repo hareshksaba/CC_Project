@@ -7,15 +7,83 @@
      notify:
       - start nginx     
 
+   - name: Create default nginx directories
+     file:
+      path: '{{ item }}'
+      state: 'directory'
+      owner: 'root'
+      group: 'root'
+      mode: '0755'
+     with_items:
+      - '/usr/share/nginx/html'
+      - '{{ nginx_letsencrypt_root }}'
+      - '/etc/nginx/sites-available'
+      - '/etc/nginx/sites-enabled'
+      - '/etc/nginx/conf.d'
+      - '/etc/nginx/ssl'
+
+   - name: Remove default site
+     file:
+      path: '{{ item }}'
+      state: 'absent'
+     with_items:
+      - '/var/www/html'
+      - '/etc/nginx/sites-enabled/default'
+      - '/etc/nginx/sites-available/default'
+     notify:
+      - restart nginx
 
    - name: copy index.html
      template: src=index.html.j2 dest=/usr/share/nginx/html/index.html
      notify:
-      - restart nginx
-   
-   - name: nginx listen on port 8081
-     lineinfile: dest=/etc/nginx/nginx.conf regexp="^%80\default%" line="8081 default" state=present
+      - restart nginx   
+
+
+   - name: Configure nginx
+     template:
+      src: 'etc/nginx/nginx.conf.j2'
+      dest: '/etc/nginx/nginx.conf'
+      group: 'root'
+      owner: 'root'
+      mode: '0644'
+     register: nginx_register_nginx_config
      notify:
       - restart nginx
+
+   - name: Generate self signed SSL certificates
+     command: >
+       openssl req
+        -new
+        -newkey rsa:4096
+        -days 365
+        -nodes
+        -x509
+        -subj "/C=US/ST=NY/L=NY/O=NA/CN=localhost"
+        -keyout /etc/nginx/ssl/{{ nginx_ssl_override_filename | default(item.value.domains[0]) }}.key
+        -out /etc/nginx/ssl/{{ nginx_ssl_override_filename | default(item.value.domains[0]) }}.pem
+     args:
+      creates: '/etc/nginx/ssl/{{ nginx_ssl_override_filename | default(item.value.domains[0]) }}.pem'
+     with_dict: '{{ nginx_sites }}'
+     when: nginx_ssl_generate_self_signed_certs
+     notify:
+      - restart nginx
+
+   - name: Generate X bit dhparam.pem file
+     command: openssl dhparam -out /etc/nginx/ssl/dhparam.pem {{ nginx_ssl_dhparam_bits }}
+     args:
+      creates: '/etc/nginx/ssl/dhparam.pem'
+     notify:
+      - restart nginx
+
+   - name: Create basic auth entries
+     htpasswd:
+      path: '/etc/nginx/.htpasswd'
+      name: '{{ item.user }}'
+      password: '{{ item.password }}'
+      crypt_scheme: 'sha512_crypt'
+      group: 'root'
+      owner: 'root'
+      mode: '0644'
+     with_items: '{{ nginx_basic_auth }}'
 
 ...
